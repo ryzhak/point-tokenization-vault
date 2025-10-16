@@ -1,0 +1,26 @@
+{
+  "lib/create3-factory": {
+    "rev": "4de3b30f9d4ad9abd394f1b9bc7d4fe2e919f367"
+  },
+  "lib/forge-safe": {
+    "rev": "2a1f8b65e1f415deef6d93bf8e8fd2a855367ac9"
+  },
+  "lib/forge-std": {
+    "rev": "93340e7e6127c817e276bc956b4f4ed13d173449"
+  },
+  "lib/openzeppelin-contracts": {
+    "rev": "4032b42694ff6599b17ffde65b2b64d7fc8a38f8"
+  },
+  "lib/openzeppelin-contracts-upgradeable": {
+    "rev": "599bd5ba472eb5a7d0a16a81ec60ef0821ee6683"
+  },
+  "lib/openzeppelin-foundry-upgrades": {
+    "rev": "7552dab50bff7d895da2b194e15774f2af91eb2a"
+  },
+  "lib/solady": {
+    "rev": "a34977e56cc1437b7ac07e6356261d2b303da686"
+  },
+  "lib/solmate": {
+    "rev": "c892309933b25c03d32b1b0d674df7ae292ba925"
+  }
+}

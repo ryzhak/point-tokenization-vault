@@ -1,0 +1,14 @@
+@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
+@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
+create3-factory/=lib/create3-factory/
+ds-test/=lib/forge-safe/lib/ds-test/src/
+erc4626-tests/=lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests/
+forge-safe/=lib/forge-safe/
+forge-std/=lib/forge-std/src/
+openzeppelin-contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/
+openzeppelin-contracts/=lib/openzeppelin-contracts/
+openzeppelin-foundry-upgrades/=lib/openzeppelin-foundry-upgrades/src/
+solady/=lib/solady/src/
+solidity-stringutils/=lib/openzeppelin-foundry-upgrades/lib/solidity-stringutils/
+solmate/=lib/solmate/src/
+surl/=lib/forge-safe/lib/surl/
