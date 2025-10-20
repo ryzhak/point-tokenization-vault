@@ -2,8 +2,9 @@
 pragma solidity =0.8.24;
 
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {Test, console2} from "forge-std/Test.sol";
+import {Test, console, console2} from "forge-std/Test.sol";
 import {MockERC20, ERC20} from "solmate/test/utils/mocks/MockERC20.sol";
+import {PToken} from "../../PToken.sol";
 import {PointTokenVault} from "../../PointTokenVault.sol";
 
 contract ProtocolTest is Test {
@@ -32,11 +33,16 @@ contract ProtocolTest is Test {
 
         vm.startPrank(admin);
         pointTokenVault.grantRole(pointTokenVault.OPERATOR_ROLE(), admin);
+        pointTokenVault.grantRole(pointTokenVault.MERKLE_UPDATER_ROLE(), admin);
         pointTokenVault.setCap(address(usdtToken), type(uint256).max);
         vm.stopPrank();
     }
 
     function testPointTokenVault() public {
+        // deployPToken
+        bytes32 pTokenId = keccak256("pointsId1");
+        PToken pToken = pointTokenVault.deployPToken(pTokenId);
+
         // // deposit
         // vm.prank(user);
         // pointTokenVault.deposit(usdtToken, 100 ether, user);
@@ -45,12 +51,56 @@ contract ProtocolTest is Test {
         // vm.prank(user);
         // pointTokenVault.withdraw(usdtToken, 100 ether, user);
 
-        // debugBalance(address(usdtToken), user, "User balance USDT");
-        // debugBalance(address(usdtToken), user2, "User2 balance USDT");
-        // debugBalance(address(usdtToken), address(pointTokenVault), "PointTokenVault balance USDT");
+        // updateRoot
+        vm.prank(admin);
+        pointTokenVault.updateRoot(0xf179ddb3a69a62bf3075bcb38cfcbd5631df52d64c7fca7a5b86362e46191512);
+
+        // claimPTokens
+        address[] memory accounts = new address[](2);
+        accounts[0] = user;
+        accounts[1] = user2;
+        uint256[] memory totalClaimable = new uint256[](2);
+        totalClaimable[0] = 5 ether;
+        totalClaimable[1] = 10 ether;     
+        bytes32[] memory leafs = getMerkleLeafs(pTokenId, accounts, totalClaimable);
+
+        debugBalance(address(pToken), user, "PToken balance (user)");
+        debugBalance(address(pToken), user2, "PToken balance (user2)");
+
+        bytes32[] memory proof = new bytes32[](1);
+        proof[0] = 0x94a83c247e8e2d40e8137a4d4357cd0b146d0a38561896cfa70f97f521e99199;
+        PointTokenVault.Claim memory claim = PointTokenVault.Claim({
+            pointsId: pTokenId,
+            totalClaimable: 5 ether,
+            amountToClaim: 5 ether,
+            proof: proof
+        });
+        vm.prank(user);
+        pointTokenVault.claimPTokens(claim, user, user);
+
+        proof[0] = 0x65f0dd0822cd1ebda33afda8b3119741a09bb1869414d18fcca2d2e6674e8959;
+        claim = PointTokenVault.Claim({
+            pointsId: pTokenId,
+            totalClaimable: 10 ether,
+            amountToClaim: 10 ether,
+            proof: proof
+        });
+        vm.prank(user2);
+        pointTokenVault.claimPTokens(claim, user2, user2);
+
+        debugBalance(address(pToken), user, "PToken balance (user)");
+        debugBalance(address(pToken), user2, "PToken balance (user2)");
     }
 
     function debugBalance(address token, address target, string memory label) public {
         console2.log(label, ":", ERC20(token).balanceOf(target));
+    }
+
+    function getMerkleLeafs(bytes32 pointsId, address[] memory accounts, uint256[] memory totalClaimable) public returns (bytes32[] memory) {
+        bytes32[] memory leafs = new bytes32[](accounts.length);
+        for (uint256 i = 0; i < accounts.length; i++) {
+            leafs[i] = keccak256(abi.encodePacked(accounts[i], pointsId, totalClaimable[i]));
+        }
+        return leafs;
     }
 }
