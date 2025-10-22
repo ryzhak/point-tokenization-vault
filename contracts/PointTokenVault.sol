@@ -18,6 +18,7 @@ import {PToken} from "./PToken.sol";
 
 /// @title Point Token Vault
 /// @notice Manages deposits and withdrawals for points-earning assets, point token claims, and reward redemptions.
+/// TOCHECK: `_gap` not used?
 contract PointTokenVault is UUPSUpgradeable, AccessControlUpgradeable, MulticallUpgradeable {
     using SafeTransferLib for ERC20;
     using MerkleProof for bytes32[];
@@ -114,6 +115,7 @@ contract PointTokenVault is UUPSUpgradeable, AccessControlUpgradeable, Multicall
     }
 
     // Rebasing and fee-on-transfer tokens must be wrapped before depositing. ie, they are not supported natively.
+    // TOWRITE: weird ERC20 token compatibility
     function deposit(ERC20 _token, uint256 _amount, address _receiver) public {
         uint256 cap = caps[address(_token)];
 
