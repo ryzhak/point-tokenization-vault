@@ -18,7 +18,10 @@ import {PToken} from "./PToken.sol";
 
 /// @title Point Token Vault
 /// @notice Manages deposits and withdrawals for points-earning assets, point token claims, and reward redemptions.
-/// TOCHECK: `_gap` not used?
+/// CHECKED: `_gap` not used? => fine, `_gap` should be used only for base (parent) contracts or when inheritance order
+/// is updated. Latest OZv5 uses ERC 7201 where each base contract's struct has its own storage location so `_gap` is 
+/// not needed. Overall, since PointTokenVault is not a base (parent) contract for other contracts `_gap` can be omitted.
+/// URL https://forum.openzeppelin.com/t/must-a-child-contract-use-the-namespaced-storage-pattern/38569/2.
 contract PointTokenVault is UUPSUpgradeable, AccessControlUpgradeable, MulticallUpgradeable {
     using SafeTransferLib for ERC20;
     using MerkleProof for bytes32[];
@@ -402,5 +405,6 @@ contract PointTokenVault is UUPSUpgradeable, AccessControlUpgradeable, Multicall
         emit FeeCollectorSet(_feeCollector);
     }
 
+    // TOWRITE: ETH stuck in the contract, no withdraw method
     receive() external payable {}
 }
