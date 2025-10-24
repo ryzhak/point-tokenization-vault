@@ -346,6 +346,8 @@ contract PointTokenVault is UUPSUpgradeable, AccessControlUpgradeable, Multicall
         emit RedemptionFeeSet(_redemptionFee);
     }
 
+    // TOWRITE: operator can pause ptoken and renounce pause role, which at least will lead to 
+    // DoS of `collectFees()`, `pausePToken()`, `unpausePToken`. Is it possible for the `PointTokenVault` to get the `PAUSE_ROLE` back?
     function pausePToken(bytes32 _pointsId) external onlyRole(OPERATOR_ROLE) {
         pTokens[_pointsId].pause();
     }
@@ -358,6 +360,7 @@ contract PointTokenVault is UUPSUpgradeable, AccessControlUpgradeable, Multicall
         pTokens[_pointsId].renounceRole(pTokens[_pointsId].PAUSE_ROLE(), address(this));
     }
 
+    // TOWRITE: if reward and PToken are the same it doesn't make sense
     function collectFees(bytes32 _pointsId) external {
         (uint256 pTokenFee, uint256 rewardTokenFee) = (pTokenFeeAcc[_pointsId], rewardTokenFeeAcc[_pointsId]);
 
