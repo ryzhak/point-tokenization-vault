@@ -348,6 +348,7 @@ contract PointTokenVault is UUPSUpgradeable, AccessControlUpgradeable, Multicall
 
     // TOWRITE: operator can pause ptoken and renounce pause role, which at least will lead to 
     // DoS of `collectFees()`, `pausePToken()`, `unpausePToken`. Is it possible for the `PointTokenVault` to get the `PAUSE_ROLE` back?
+    // => no, since there's no DEFAULT_ADMIN_ROLE for PointTokenVault, see test `testRenouncePauseRole`
     function pausePToken(bytes32 _pointsId) external onlyRole(OPERATOR_ROLE) {
         pTokens[_pointsId].pause();
     }

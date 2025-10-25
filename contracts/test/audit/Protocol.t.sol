@@ -48,6 +48,36 @@ contract ProtocolTest is Test {
         vm.stopPrank();
     }
 
+    /**
+     * Scenario:
+     * 1. `OPERATOR_ROLE` pauses pToken
+     * 2. `OPERATOR_ROLE` calls `renouncePauseRole()` which removes `PAUSE_ROLE` from `PointTokenVault`
+     * 3. `OPERATOR_ROLE` tries to unpause pToken which reverts with `AccessControlUnauthorizedAccount` since
+     * `PointTokenVault` doesn't have the `PAUSE_ROLE` anymore thus causing DoS for:
+     * - PToken.mint()
+     * - PToken.burn()
+     * - PToken.transferFrom()
+     * - PToken.transfer()
+     * - PointTokenVault.claimPTokens()
+     * - PointTokenVault.redeemRewards()
+     * - PointTokenVault.convertRewardsToPTokens()
+     * - PointTokenVault.pausePToken()
+     * - PointTokenVault.unpausePToken()
+     * - PointTokenVault.collectFees()
+     */
+    function testRenouncePauseRole() public {
+        // deploy PToken
+        bytes32 pTokenId = keccak256("pointsId1");
+        PToken pToken = pointTokenVault.deployPToken(pTokenId);
+
+        vm.startPrank(admin);
+        pointTokenVault.pausePToken(pTokenId);
+        pointTokenVault.renouncePauseRole(pTokenId);
+        // reverts with `AccessControlUnauthorizedAccount` causing DoS for most of `PToken` and `PointTokenVault` methods
+        pointTokenVault.unpausePToken(pTokenId);
+        vm.stopPrank();
+    }
+
     function testPointTokenVault() public {
         // deployPToken
         bytes32 pTokenId = keccak256("pointsId1");
