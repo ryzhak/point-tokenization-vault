@@ -136,6 +136,7 @@ contract PointTokenVault is UUPSUpgradeable, AccessControlUpgradeable, Multicall
         emit Deposit(msg.sender, _receiver, address(_token), _amount);
     }
 
+    // TOWRITE: if `_receiver` is current contract then funds are stuck
     function withdraw(ERC20 _token, uint256 _amount, address _receiver) public {
         balances[msg.sender][_token] -= _amount;
         totalDeposited[address(_token)] -= _amount;
@@ -361,6 +362,7 @@ contract PointTokenVault is UUPSUpgradeable, AccessControlUpgradeable, Multicall
         pTokens[_pointsId].renounceRole(pTokens[_pointsId].PAUSE_ROLE(), address(this));
     }
 
+    // TOWRITE: if reward and deposit tokens are the same the user1 can deposit(), user2 can redeemRewards(), user1 won't be able to withdraw()
     // TOWRITE: if reward and PToken are the same it doesn't make sense
     function collectFees(bytes32 _pointsId) external {
         (uint256 pTokenFee, uint256 rewardTokenFee) = (pTokenFeeAcc[_pointsId], rewardTokenFeeAcc[_pointsId]);

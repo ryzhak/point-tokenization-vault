@@ -1,5 +1,6 @@
 using PointTokenVault as pointTokenVault;
 using PToken as pToken;
+using MockERC20 as mockERC20;
 
 methods {
     // PToken
@@ -17,9 +18,313 @@ methods {
     function _.unpause() external => DISPATCHER(true);
 }
 
+function applySafeAssumptions(env e) {
+    require e.msg.sender != currentContract;
+}
+
 //===========
 // Unit
 //===========
+
+// `deposit()` updates storage as expected
+rule unit_deposit_integrity() {
+    env e;
+    
+    address token; 
+    uint256 amount; 
+    address receiver;
+
+    applySafeAssumptions(e);
+
+    uint256 receiverBalanceBefore = balances(e, receiver, token);
+    uint256 totalDepositedBefore = totalDeposited(e, token);
+    uint256 contractBalanceBefore = token.balanceOf(e, currentContract);
+
+    deposit(e, token, amount, receiver);
+
+    uint256 receiverBalanceAfter = balances(e, receiver, token);
+    uint256 totalDepositedAfter = totalDeposited(e, token);
+    uint256 contractBalanceAfter = token.balanceOf(e, currentContract);
+
+    assert receiverBalanceAfter == require_uint256(receiverBalanceBefore + amount);
+    assert totalDepositedAfter == require_uint256(totalDepositedBefore + amount);
+    assert contractBalanceAfter == require_uint256(contractBalanceBefore + amount);
+}
+
+// `deposit()` reverts when expected
+rule unit_deposit_revertConditions() {
+    env e;
+    
+    address token; 
+    uint256 amount; 
+    address receiver;
+
+    applySafeAssumptions(e);
+
+    require token == mockERC20;
+
+    bool isEtherSent = e.msg.value > 0;
+    bool isCapReach = (caps(e, token) < max_uint256) && (totalDeposited(e, token) + amount > caps(e, token));
+    bool isBalanceOverflow = balances(e, receiver, token) + amount > max_uint256;
+    bool isTotalDepositedOverflow = totalDeposited(e, token) + amount > max_uint256;
+    bool hasEnoughBalance = token.balanceOf(e, e.msg.sender) >= amount;
+    bool hasEnoughAllowance = token.allowance(e, e.msg.sender, currentContract) >= amount;
+
+    bool isExpectedToRevert = 
+        isEtherSent ||
+        isCapReach ||
+        isBalanceOverflow ||
+        isTotalDepositedOverflow ||
+        !hasEnoughBalance ||
+        !hasEnoughAllowance;
+
+    deposit@withrevert(e, token, amount, receiver);
+
+    assert lastReverted <=> isExpectedToRevert;
+}
+
+// `deposit` does not affect other entities
+rule unit_deposit_doesNotAffectOtherEntities() {
+    env e;
+    
+    address token; 
+    uint256 amount; 
+    address receiver;
+    address otherUser;
+
+    require receiver != otherUser;
+
+    applySafeAssumptions(e);
+
+    uint256 otherUserBalanceBefore = balances(e, otherUser, token);
+
+    deposit(e, token, amount, receiver);
+
+    uint256 otherUserBalanceAfter = balances(e, otherUser, token);
+
+    assert otherUserBalanceBefore == otherUserBalanceAfter;
+}
+
+// `withdraw()` updates storage as expected
+rule unit_withdraw_integrity() {
+    env e;
+    
+    address token; 
+    uint256 amount; 
+    address receiver;
+
+    applySafeAssumptions(e);
+
+    require receiver != currentContract;
+
+    uint256 receiverBalanceBefore = token.balanceOf(e, receiver);
+    uint256 totalDepositedBefore = totalDeposited(e, token);
+    uint256 contractBalanceBefore = token.balanceOf(e, currentContract);
+
+    withdraw(e, token, amount, receiver);
+
+    uint256 receiverBalanceAfter = token.balanceOf(e, receiver);
+    uint256 totalDepositedAfter = totalDeposited(e, token);
+    uint256 contractBalanceAfter = token.balanceOf(e, currentContract);
+
+    assert receiverBalanceAfter == require_uint256(receiverBalanceBefore + amount);
+    assert totalDepositedAfter == require_uint256(totalDepositedBefore - amount);
+    assert contractBalanceAfter == require_uint256(contractBalanceBefore - amount);
+}
+
+// `withdraw()` reverts when expected
+rule unit_withdraw_revertConditions() {
+    env e;
+    
+    address token; 
+    uint256 amount; 
+    address receiver;
+
+    applySafeAssumptions(e);
+
+    require token == mockERC20;
+
+    bool isEtherSent = e.msg.value > 0;
+    bool hasUserDepositedEnough = balances(e, e.msg.sender, token) >= amount;
+    bool isBalanceUnderflow = balances(e, receiver, token) - amount < 0;
+    bool isTotalDepositedUnderflow = totalDeposited(e, token) - amount < 0;
+    bool hasContractEnoughBalance = token.balanceOf(e, currentContract) >= amount;
+
+    bool isExpectedToRevert = 
+        isEtherSent ||
+        !hasUserDepositedEnough ||
+        isBalanceUnderflow ||
+        isTotalDepositedUnderflow ||
+        !hasContractEnoughBalance;
+
+    withdraw@withrevert(e, token, amount, receiver);
+
+    assert lastReverted <=> isExpectedToRevert;
+}
+
+// `withdraw` does not affect other entities
+rule unit_withdraw_doesNotAffectOtherEntities() {
+    env e;
+    
+    address token; 
+    uint256 amount; 
+    address receiver;
+    address otherUser;
+
+    require otherUser != receiver && otherUser != e.msg.sender;
+
+    applySafeAssumptions(e);
+
+    uint256 otherUserBalanceBefore = balances(e, otherUser, token);
+
+    withdraw(e, token, amount, receiver);
+
+    uint256 otherUserBalanceAfter = balances(e, otherUser, token);
+
+    assert otherUserBalanceBefore == otherUserBalanceAfter;
+}
+
+// `claimPTokens()` updates storage as expected
+rule unit_claimPTokens_integrity() {
+    env e;
+    
+    PointTokenVault.Claim claim;
+    address account; 
+    address receiver;
+
+    applySafeAssumptions(e);
+
+    uint256 totalFeeBefore = pTokenFeeAcc(e, claim.pointsId);
+    uint256 receiverBalanceBefore = pTokens(e, claim.pointsId).balanceOf(e, receiver);
+
+    claimPTokens(e, claim, account, receiver);
+
+    uint256 totalFeeAfter = pTokenFeeAcc(e, claim.pointsId);
+    uint256 receiverBalanceAfter = pTokens(e, claim.pointsId).balanceOf(e, receiver);
+
+    uint256 mintFee = mintFee(e);
+    uint256 expectedFee = require_uint256(claim.amountToClaim * mintFee / 1000000000000000000);
+
+    assert totalFeeAfter == totalFeeBefore + expectedFee;
+    assert receiverBalanceAfter == receiverBalanceBefore + claim.amountToClaim;
+}
+
+// `claimPTokens()` reverts when expected
+rule unit_claimPTokens_revertConditions() {
+    env e;
+    
+    PointTokenVault.Claim claim;
+    address account; 
+    address receiver;
+
+    applySafeAssumptions(e);
+
+    uint256 mintFee = mintFee(e);
+    uint256 expectedFee = require_uint256(claim.amountToClaim * mintFee / 1000000000000000000);
+
+    bool isEtherSent = e.msg.value > 0;
+    bool isPTokenDeployed = pTokens(e, claim.pointsId) != 0;
+    bool isReceiverTrusted = account == receiver || trustedReceivers(e, account, receiver);
+    bool isPTokenFeeOverflow = claim.amountToClaim * mintFee > max_uint256;
+    bool isPTokenFeeAccOverflow = pTokenFeeAcc(e, claim.pointsId) + expectedFee > max_uint256;
+    bool isPTokenTotalSupplyOverflow = pTokens(e, claim.pointsId).totalSupply(e) + claim.amountToClaim > max_uint256;
+    bool isReceiverOverflow = pTokens(e, claim.pointsId).balanceOf(e, receiver) + claim.amountToClaim > max_uint256;
+    bool isTokenFeeGreaterThanAmountToClaim = expectedFee > claim.amountToClaim;
+
+    bool isExpectedToRevert = 
+        isEtherSent ||
+        !isPTokenDeployed ||
+        !isReceiverTrusted ||
+        isPTokenFeeOverflow ||
+        isPTokenFeeAccOverflow ||
+        isPTokenTotalSupplyOverflow ||
+        isReceiverOverflow ||
+        isTokenFeeGreaterThanAmountToClaim;
+
+    claimPTokens@withrevert(e, claim, account, receiver);
+
+    assert lastReverted <=> isExpectedToRevert;
+}
+
+// `claimPTokens()` does not affect other entities
+rule unit_claimPTokens_doesNotAffectOtherEntities() {
+    env e;
+    
+    PointTokenVault.Claim claim;
+    address account; 
+    address receiver;
+    address otherUser;
+
+    require otherUser != receiver;
+
+    applySafeAssumptions(e);
+
+    uint256 otherUserBalanceBefore = pTokens(e, claim.pointsId).balanceOf(e, receiver);
+
+    claimPTokens(e, claim, account, receiver);
+
+    uint256 otherUserBalanceAfter = pTokens(e, claim.pointsId).balanceOf(e, receiver);
+
+    assert otherUserBalanceBefore == otherUserBalanceAfter;
+}
+
+// `trustReceiver()` updates storage as expected
+rule unit_trustReceiver_integrity() {
+    env e;
+
+    address account;
+    bool isTrusted;
+
+    trustReceiver(e, account, isTrusted);
+
+    assert trustedReceivers(e, e.msg.sender, account) == isTrusted;
+}
+
+// `trustReceiver()` reverts when expected
+rule unit_trustReceiver_revertConditions() {
+    env e;
+
+    address account;
+    bool isTrusted;
+
+    bool isEtherSent = e.msg.value > 0;
+
+    bool isExpectedToRevert = 
+        isEtherSent;
+
+    trustReceiver@withrevert(e, account, isTrusted);
+
+    assert lastReverted <=> isExpectedToRevert;
+}
+
+// `deployPToken()` updates storage as expected
+rule unit_deployPToken_integrity() {
+    env e;
+
+    bytes32 pointsId;
+
+    deployPToken(e, pointsId);
+
+    assert pTokens(e, pointsId) != 0;
+}
+
+// `deployPToken()` reverts when expected
+rule unit_deployPToken_revertConditions() {
+    env e;
+
+    bytes32 pointsId;
+
+    bool isEtherSent = e.msg.value > 0;
+    bool isAlreadyDeployed = pTokens(e, pointsId) != 0;
+
+    bool isExpectedToRevert = 
+        isEtherSent ||
+        isAlreadyDeployed;
+
+    deployPToken@withrevert(e, pointsId);
+
+    assert lastReverted <=> isExpectedToRevert;
+}
 
 // `updateRoot()` updates storage as expected
 rule unit_updateRoot_integrity() {
