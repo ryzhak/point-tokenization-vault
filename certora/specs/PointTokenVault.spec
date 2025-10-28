@@ -325,7 +325,7 @@ rule unit_redeemRewards_revertConditions() {
     bool isRewardTokenZero = rewardToken == 0;
     bool areRewardTokenDecimalsTooBig = rewardToken.decimals(e) > 18;
     bool isMerkleRootValid = getMerkleRootForRedemption(e, claim, e.msg.sender) == currRoot(e) || getMerkleRootForRedemption(e, claim, e.msg.sender) == prevRoot(e);
-    bool isClaimTooLarge = claimedRedemptionRights(e, account, claim.pointsId) + claim.amountToClaim > claim.totalClaimable;
+    bool isClaimTooLarge = claimedRedemptionRights(e, e.msg.sender, claim.pointsId) + claim.amountToClaim > claim.totalClaimable;
 
     bool isExpectedToRevert = 
         isEtherSent ||
@@ -498,7 +498,7 @@ rule unit_deployPToken_integrity() {
 
     deployPToken(e, pointsId);
 
-    assert !lastReverted;
+    assert pTokens(e, pointsId) != 0;
 }
 
 // `deployPToken()` reverts when expected
