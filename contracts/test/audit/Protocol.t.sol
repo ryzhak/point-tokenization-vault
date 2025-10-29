@@ -169,6 +169,10 @@ contract ProtocolTest is Test {
         // // collectFees
         // pointTokenVault.collectFees(pTokenId);
 
+        // // execute
+        // vm.prank(admin);
+        // pointTokenVault.execute(address(0), bytes(""), 0);
+
         // debugBalance(address(pToken), user, "PToken balance (user)");
         // debugBalance(address(pToken), user2, "PToken balance (user2)");
     }

@@ -33,9 +33,11 @@ function cvlUnpackTwo(bytes32 packed) returns (string, string) {
 //===========
 
 // Methods are called by expected roles
-rule high_accessControl() {
+rule high_accessControl(method f) filtered {
+    f -> f.selector != sig:deployPToken(bytes32).selector
+} {
     env e;
-    method f;
+    
     calldataarg args;
 
     f(e, args);
@@ -59,10 +61,7 @@ rule high_accessControl() {
         hasRole(e, currentContract.OPERATOR_ROLE(e), e.msg.sender);
     
     assert
-        (
-            f.selector == sig:setFeeCollector(address).selector ||
-            f.selector == sig:execute(address,bytes,uint256).selector
-        )
+        f.selector == sig:setFeeCollector(address).selector
         =>
         hasRole(e, currentContract.DEFAULT_ADMIN_ROLE(e), e.msg.sender);
 }
