@@ -17,7 +17,7 @@ methods {
     function _.transferFrom(address, address, uint256) external => DISPATCHER(true);
     function _.unpause() external => DISPATCHER(true);
     // LibString
-    function LibString.unpackTwo(bytes32 packed) internal returns (string memory, string memory) => cvlUnpackTwo(packed);
+    function _.unpackTwo(bytes32 packed) internal => cvlUnpackTwo(packed) expect (string memory, string memory);
 }
 
 function applySafeAssumptions(env e) {
@@ -26,6 +26,45 @@ function applySafeAssumptions(env e) {
 
 function cvlUnpackTwo(bytes32 packed) returns (string, string) {
     return ("TKN", "TKN");
+}
+
+//===========
+// High
+//===========
+
+// Methods are called by expected roles
+rule high_accessControl() {
+    env e;
+    method f;
+    calldataarg args;
+
+    f(e, args);
+
+    assert
+        f.selector == sig:updateRoot(bytes32).selector 
+        =>
+        hasRole(e, currentContract.MERKLE_UPDATER_ROLE(e), e.msg.sender);
+
+    assert
+        (
+            f.selector == sig:setCap(address,uint256).selector ||
+            f.selector == sig:setRedemption(bytes32,address,uint256,bool).selector ||
+            f.selector == sig:setMintFee(uint256).selector ||
+            f.selector == sig:setRedemptionFee(uint256).selector ||
+            f.selector == sig:pausePToken(bytes32).selector ||
+            f.selector == sig:unpausePToken(bytes32).selector ||
+            f.selector == sig:renouncePauseRole(bytes32).selector
+        )
+        =>
+        hasRole(e, currentContract.OPERATOR_ROLE(e), e.msg.sender);
+    
+    assert
+        (
+            f.selector == sig:setFeeCollector(address).selector ||
+            f.selector == sig:execute(address,bytes,uint256).selector
+        )
+        =>
+        hasRole(e, currentContract.DEFAULT_ADMIN_ROLE(e), e.msg.sender);
 }
 
 //===========
@@ -326,9 +365,10 @@ rule unit_redeemRewards_revertConditions() {
     require rewardToken.decimals(e) == 18;
     require expectedPTokensBurned * rewardsPerPToken < max_uint256;
     require rewardToken.balanceOf(e, currentContract) >= claim.amountToClaim;
-    require redemptionFee(e) <= 50 * 1000000000000000000;
+    require redemptionFee(e) == 0;
     require expectedPTokensBurned <= 100 * 1000000000000000000;
     require rewardTokenFeeAcc(e, claim.pointsId) < max_uint256;
+    require rewardsPerPToken <= 10 * 1000000000000000000;
 
     bool isEtherSent = e.msg.value > 0;
     bool isRewardTokenZero = rewardToken == 0;

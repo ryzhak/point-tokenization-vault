@@ -4,6 +4,7 @@ pragma solidity =0.8.24;
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {Test, console, console2} from "forge-std/Test.sol";
 import {MockERC20, ERC20} from "solmate/test/utils/mocks/MockERC20.sol";
+import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {PToken} from "../../PToken.sol";
 import {PointTokenVault} from "../../PointTokenVault.sol";
 
@@ -46,6 +47,14 @@ contract ProtocolTest is Test {
         pointTokenVault.setRedemptionFee(0.1e18); // 10%
         pointTokenVault.setFeeCollector(feeCollector);
         vm.stopPrank();
+    }
+
+    function testMath() public {
+        uint max = type(uint256).max;
+        uint x = 1 ether;
+        uint y = 2 ether;
+        uint result = FixedPointMathLib.mulWadDown(x, y);
+        console2.log(result);
     }
 
     /**
