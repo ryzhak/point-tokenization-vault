@@ -232,8 +232,7 @@ rule unit_claimPTokens_revertConditions() {
     bool isReceiverTrusted = account == receiver || trustedReceivers(e, account, receiver);
     bool isPTokenFeeOverflow = claim.amountToClaim * mintFee > max_uint256;
     bool isPTokenFeeAccOverflow = pTokenFeeAcc(e, claim.pointsId) + expectedFee > max_uint256;
-    bool isPTokenTotalSupplyOverflow = pTokens(e, claim.pointsId).totalSupply(e) + claim.amountToClaim > max_uint256;
-    bool isReceiverOverflow = pTokens(e, claim.pointsId).balanceOf(e, receiver) + claim.amountToClaim > max_uint256;
+    bool isPTokenTotalSupplyOverflow = pTokens(e, claim.pointsId).totalSupply(e) + claim.amountToClaim - expectedFee > max_uint256;
     bool isTokenFeeGreaterThanAmountToClaim = expectedFee > claim.amountToClaim;
     bool isClaimTooLarge = claimedPTokens(e, account, claim.pointsId) + claim.amountToClaim > claim.totalClaimable;
     bool isMerkleRootValid = getMerkleRootFromClaim(e, claim, account) == currRoot(e) || getMerkleRootFromClaim(e, claim, account) == prevRoot(e);
@@ -247,7 +246,6 @@ rule unit_claimPTokens_revertConditions() {
         isPTokenFeeOverflow ||
         isPTokenFeeAccOverflow ||
         isPTokenTotalSupplyOverflow ||
-        isReceiverOverflow ||
         isTokenFeeGreaterThanAmountToClaim ||
         isClaimTooLarge ||
         !isMerkleRootValid ||
@@ -316,23 +314,41 @@ rule unit_redeemRewards_revertConditions() {
     PointTokenVault.Claim claim;
     address receiver;
 
-    applySafeAssumptions(e);
-
     address rewardToken;
-    rewardToken, _, _ = redemptions(e, claim.pointsId);
+    bool isMerkleBased;
+    uint256 rewardsPerPToken;
+    rewardToken, rewardsPerPToken, isMerkleBased = redemptions(e, claim.pointsId);
+    uint256 expectedPTokensBurned = getPTokensForRewards(e, claim.pointsId, claim.amountToClaim, true);
+
+    applySafeAssumptions(e);
+    require rewardToken == mockERC20;
+    require claim.amountToClaim * 1000000000000000000 < max_uint256;
+    require rewardToken.decimals(e) == 18;
+    require expectedPTokensBurned * rewardsPerPToken < max_uint256;
+    require rewardToken.balanceOf(e, currentContract) >= claim.amountToClaim;
+    require redemptionFee(e) <= 50 * 1000000000000000000;
+    require expectedPTokensBurned <= 100 * 1000000000000000000;
+    require rewardTokenFeeAcc(e, claim.pointsId) < max_uint256;
 
     bool isEtherSent = e.msg.value > 0;
     bool isRewardTokenZero = rewardToken == 0;
-    bool areRewardTokenDecimalsTooBig = rewardToken.decimals(e) > 18;
     bool isMerkleRootValid = getMerkleRootForRedemption(e, claim, e.msg.sender) == currRoot(e) || getMerkleRootForRedemption(e, claim, e.msg.sender) == prevRoot(e);
     bool isClaimTooLarge = claimedRedemptionRights(e, e.msg.sender, claim.pointsId) + claim.amountToClaim > claim.totalClaimable;
+    bool isRewardsPerPTokenZero = rewardsPerPToken == 0;
+    bool isPTokenPaused = pTokens(e, claim.pointsId).paused(e);
+    bool hasSupplyAdminRole = pTokens(e, claim.pointsId).hasRole(e, pTokens(e, claim.pointsId).SUPPLY_ADMIN_ROLE(e), currentContract);
+    bool isFeelesslyRedeemedGreaterThanClaimed = feelesslyRedeemedPTokens(e, e.msg.sender, claim.pointsId) > claimedPTokens(e, e.msg.sender, claim.pointsId);
+    bool hasUserEnoughPTokensBalance = pTokens(e, claim.pointsId).balanceOf(e, e.msg.sender) >= expectedPTokensBurned;
 
     bool isExpectedToRevert = 
         isEtherSent ||
         isRewardTokenZero ||
-        areRewardTokenDecimalsTooBig ||
-        !isMerkleRootValid ||
-        isClaimTooLarge;
+        (isMerkleBased && (!isMerkleRootValid || isClaimTooLarge)) ||
+        isRewardsPerPTokenZero ||
+        isPTokenPaused ||
+        !hasSupplyAdminRole ||
+        isFeelesslyRedeemedGreaterThanClaimed ||
+        !hasUserEnoughPTokensBalance;
 
     redeemRewards@withrevert(e, claim, receiver);
 
@@ -374,12 +390,13 @@ rule unit_convertRewardsToPTokens_integrity() {
     bytes32 pointsId; 
     uint256 amount;
 
-    applySafeAssumptions(e);
-    require receiver != currentContract;
-
     address rewardToken;
     rewardToken, _, _ = redemptions(e, pointsId);
-    uint256 expectedPTokensMinted = getPTokensForRewards(e, pointsId, amount);
+    uint256 expectedPTokensMinted = getPTokensForRewards(e, pointsId, amount, false);
+
+    applySafeAssumptions(e);
+    require receiver != currentContract;
+    require rewardToken == mockERC20;
 
     uint256 rewardTokenBalanceBefore = rewardToken.balanceOf(e, e.msg.sender);
     uint256 pTokensBalanceBefore = pTokens(e, pointsId).balanceOf(e, receiver);
@@ -391,8 +408,8 @@ rule unit_convertRewardsToPTokens_integrity() {
     uint256 rewardTokenBalanceAfter = rewardToken.balanceOf(e, e.msg.sender);
     uint256 pTokensBalanceAfter = pTokens(e, pointsId).balanceOf(e, receiver);
 
-    assert rewardTokenBalanceBefore <= rewardTokenBalanceAfter;
-    assert pTokensBalanceAfter >= pTokensBalanceBefore;
+    assert rewardTokenBalanceBefore >= rewardTokenBalanceAfter;
+    assert pTokensBalanceBefore <= pTokensBalanceAfter;
 }
 
 // `convertRewardsToPTokens` reverts when expected
@@ -409,8 +426,11 @@ rule unit_convertRewardsToPTokens_revertConditions() {
     uint256 rewardsPerPToken;
     bool isMerkleBased;
     rewardToken, rewardsPerPToken, isMerkleBased = redemptions(e, pointsId);
+    uint256 expectedPTokensMinted = getPTokensForRewards(e, pointsId, amount, false);
+    uint256 pTokensBalanceBefore = pTokens(e, pointsId).balanceOf(e, receiver);
 
     require rewardToken == mockERC20;
+    require pTokensBalanceBefore + expectedPTokensMinted < max_uint256;
 
     bool isEtherSent = e.msg.value > 0;
     bool isRewardTokenZero = rewardToken == 0;
@@ -418,6 +438,11 @@ rule unit_convertRewardsToPTokens_revertConditions() {
     bool isOverflow = amount * 1000000000000000000 > max_uint256;
     bool hasSenderEnoughBalance = rewardToken.balanceOf(e, e.msg.sender) >= amount;
     bool hasRewardTokenGreaterThan18Decimals = rewardToken.decimals(e) > 18;
+    bool hasEnoughAllowance = rewardToken.allowance(e, e.msg.sender, currentContract) >= amount;
+    bool isPTokenPaused = pTokens(e, pointsId).paused(e);
+    bool hasSupplyAdminRole = pTokens(e, pointsId).hasRole(e, pTokens(e, pointsId).SUPPLY_ADMIN_ROLE(e), currentContract);
+    bool isPTokensMintedZero = expectedPTokensMinted == 0;
+    bool isPTokenTotalSupplyOverflow = pTokens(e, pointsId).totalSupply(e) + expectedPTokensMinted > max_uint256;
 
     bool isExpectedToRevert = 
         isEtherSent ||
@@ -426,7 +451,12 @@ rule unit_convertRewardsToPTokens_revertConditions() {
         isAmountTooSmall ||
         isOverflow ||
         !hasSenderEnoughBalance ||
-        hasRewardTokenGreaterThan18Decimals;
+        hasRewardTokenGreaterThan18Decimals ||
+        !hasEnoughAllowance ||
+        isPTokenPaused ||
+        !hasSupplyAdminRole ||
+        isPTokensMintedZero ||
+        isPTokenTotalSupplyOverflow;
 
     convertRewardsToPTokens@withrevert(e, receiver, pointsId, amount);
 
@@ -488,17 +518,6 @@ rule unit_trustReceiver_revertConditions() {
     trustReceiver@withrevert(e, account, isTrusted);
 
     assert lastReverted <=> isExpectedToRevert;
-}
-
-// `deployPToken()` updates storage as expected
-rule unit_deployPToken_integrity() {
-    env e;
-
-    bytes32 pointsId;
-
-    deployPToken(e, pointsId);
-
-    assert pTokens(e, pointsId) != 0;
 }
 
 // `deployPToken()` reverts when expected

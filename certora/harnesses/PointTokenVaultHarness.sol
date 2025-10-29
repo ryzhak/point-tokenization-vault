@@ -25,12 +25,17 @@ contract PointTokenVaultHarness is PointTokenVault {
         return candidateRoot;
     }
 
-    function getPTokensForRewards(bytes32 pointsId, uint256 amountToConvert) public view returns (uint256) {
+    function getPTokensForRewards(bytes32 pointsId, uint256 amountToConvert, bool isRoundUp) public view returns (uint256) {
         RedemptionParams memory params = redemptions[pointsId];
         (ERC20 rewardToken, uint256 rewardsPerPToken) = (params.rewardToken, params.rewardsPerPToken);
 
+        uint256 pTokensToMint;
         uint256 scalingFactor = 10 ** (18 - rewardToken.decimals());
-        uint256 pTokensToMint = FixedPointMathLib.divWadDown(amountToConvert * scalingFactor, rewardsPerPToken);
+        if (isRoundUp) {
+            pTokensToMint = FixedPointMathLib.divWadUp(amountToConvert * scalingFactor, rewardsPerPToken);
+        } else {
+            pTokensToMint = FixedPointMathLib.divWadDown(amountToConvert * scalingFactor, rewardsPerPToken);
+        }
 
         return pTokensToMint;
     }

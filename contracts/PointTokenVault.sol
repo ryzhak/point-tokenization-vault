@@ -208,6 +208,7 @@ contract PointTokenVault is UUPSUpgradeable, AccessControlUpgradeable, Multicall
         uint256 feelesslyRedeemed = feelesslyRedeemedPTokens[msg.sender][pointsId];
 
         // The amount of pTokens that are free to redeem without fee.
+        // TOWRITE: if `feelesslyRedeemed > claimed` then it's a DoS
         uint256 feelesslyRedeemable = claimed - feelesslyRedeemed;
 
         uint256 rewardsToTransfer;
