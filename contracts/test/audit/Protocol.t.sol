@@ -49,12 +49,73 @@ contract ProtocolTest is Test {
         vm.stopPrank();
     }
 
-    function testMath() public {
-        uint max = type(uint256).max;
-        uint x = 1 ether;
-        uint y = 2 ether;
-        uint result = FixedPointMathLib.mulWadDown(x, y);
-        console2.log(result);
+    /**
+     * Scenario:
+     1. Admin sets PToken as a reward token with `0.5 ether` as a reward per PToken
+     2. User calls `convertRewardsToPTokens()`, transfers 10 PTokens and gets 20 PTokens minted
+     3. At his point user can repeat steps 1 and 2 which is basically an infinite mint
+     */
+    function testConvertRewardsToPTokens() public {
+        // deployPToken
+        bytes32 pTokenId = keccak256("pointsId1");
+        PToken pToken = pointTokenVault.deployPToken(pTokenId);
+
+        // setRedemption
+        vm.prank(admin);
+        pointTokenVault.setRedemption(pTokenId, pToken, 0.5 ether, false);
+        
+        deal(address(pToken), user, 10 ether);
+
+        // convertRewardsToPTokens
+        vm.startPrank(user);
+        pToken.approve(address(pointTokenVault), type(uint256).max);
+        pointTokenVault.convertRewardsToPTokens(user, pTokenId, 10 ether);
+        vm.stopPrank();
+
+        // user got 20 PTokens for transferring 10 PTokens
+        assertEq(pToken.balanceOf(user), 20 ether);
+    }
+
+    /**
+     * Scenario:
+     * 1. User1 deposits 100 USDT
+     * 2. Admins sets redemption params so that deposit and reward tokens are the same
+     * 3. User2 buys 100 PTokens on secondary market
+     * 4. User2 calls `redeemRewards()` burning 100 PTokens for 90 USDT (-10% redemption fee)
+     *.5. User1 is unable to call `withdraw()` since there's not enough funds
+     */
+    function testRewardAndDepositTokensAreTheSame() public {
+        // deployPToken
+        bytes32 pTokenId = keccak256("pointsId1");
+        PToken pToken = pointTokenVault.deployPToken(pTokenId);
+
+        // deposit
+        vm.prank(user);
+        pointTokenVault.deposit(usdtToken, 100 ether, user);
+
+        // setRedemption
+        vm.prank(admin);
+        pointTokenVault.setRedemption(pTokenId, usdtToken, 1 ether, false);
+
+        // user2 buys 100 PTokens on secondary market
+        deal(address(pToken), user2, 100 ether);
+
+        // redeemRewards
+        bytes32[] memory proof = new bytes32[](1);
+        proof[0] = "";
+        PointTokenVault.Claim memory claim = PointTokenVault.Claim({
+            pointsId: pTokenId,
+            totalClaimable: 100 ether,
+            amountToClaim: 100 ether,
+            proof: proof
+        });
+        vm.prank(user2);
+        pointTokenVault.redeemRewards(claim, user2);
+
+        // withdraw reverts with "not enough funds"
+        vm.prank(user);
+        vm.expectRevert();
+        pointTokenVault.withdraw(usdtToken, 100 ether, user);
     }
 
     /**

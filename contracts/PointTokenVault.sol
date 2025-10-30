@@ -118,7 +118,7 @@ contract PointTokenVault is UUPSUpgradeable, AccessControlUpgradeable, Multicall
     }
 
     // Rebasing and fee-on-transfer tokens must be wrapped before depositing. ie, they are not supported natively.
-    // TOWRITE: weird ERC20 token compatibility
+    // WRITTEN: weird ERC20 token compatibility
     function deposit(ERC20 _token, uint256 _amount, address _receiver) public {
         uint256 cap = caps[address(_token)];
 
@@ -136,7 +136,6 @@ contract PointTokenVault is UUPSUpgradeable, AccessControlUpgradeable, Multicall
         emit Deposit(msg.sender, _receiver, address(_token), _amount);
     }
 
-    // TOWRITE: if `_receiver` is current contract then funds are stuck
     function withdraw(ERC20 _token, uint256 _amount, address _receiver) public {
         balances[msg.sender][_token] -= _amount;
         totalDeposited[address(_token)] -= _amount;
@@ -208,7 +207,7 @@ contract PointTokenVault is UUPSUpgradeable, AccessControlUpgradeable, Multicall
         uint256 feelesslyRedeemed = feelesslyRedeemedPTokens[msg.sender][pointsId];
 
         // The amount of pTokens that are free to redeem without fee.
-        // TOWRITE: if `feelesslyRedeemed > claimed` then it's a DoS
+        // CHECKED: if `feelesslyRedeemed > claimed` then it's a DoS => seems no
         uint256 feelesslyRedeemable = claimed - feelesslyRedeemed;
 
         uint256 rewardsToTransfer;
@@ -348,7 +347,7 @@ contract PointTokenVault is UUPSUpgradeable, AccessControlUpgradeable, Multicall
         emit RedemptionFeeSet(_redemptionFee);
     }
 
-    // TOWRITE: operator can pause ptoken and renounce pause role, which at least will lead to 
+    // WRITTEN: operator can pause ptoken and renounce pause role, which at least will lead to 
     // DoS of `collectFees()`, `pausePToken()`, `unpausePToken`. Is it possible for the `PointTokenVault` to get the `PAUSE_ROLE` back?
     // => no, since there's no DEFAULT_ADMIN_ROLE for PointTokenVault, see test `testRenouncePauseRole`
     function pausePToken(bytes32 _pointsId) external onlyRole(OPERATOR_ROLE) {
@@ -363,8 +362,8 @@ contract PointTokenVault is UUPSUpgradeable, AccessControlUpgradeable, Multicall
         pTokens[_pointsId].renounceRole(pTokens[_pointsId].PAUSE_ROLE(), address(this));
     }
 
-    // TOWRITE: if reward and deposit tokens are the same the user1 can deposit(), user2 can redeemRewards(), user1 won't be able to withdraw()
-    // TOWRITE: if reward and PToken are the same it doesn't make sense
+    // WRITTEN: if reward and deposit tokens are the same the user1 can deposit(), user2 can redeemRewards(), user1 won't be able to withdraw()
+    // WRITTEN: if reward and PToken are the same it doesn't make sense
     function collectFees(bytes32 _pointsId) external {
         (uint256 pTokenFee, uint256 rewardTokenFee) = (pTokenFeeAcc[_pointsId], rewardTokenFeeAcc[_pointsId]);
 
@@ -412,6 +411,6 @@ contract PointTokenVault is UUPSUpgradeable, AccessControlUpgradeable, Multicall
         emit FeeCollectorSet(_feeCollector);
     }
 
-    // TOWRITE: ETH stuck in the contract, no withdraw method
+    // WRITTEN: ETH stuck in the contract, no withdraw method
     receive() external payable {}
 }
